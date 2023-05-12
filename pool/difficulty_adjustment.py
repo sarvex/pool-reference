@@ -17,7 +17,7 @@ def get_new_difficulty(
     """
 
     # If we haven't processed any partials yet, maintain the current (default) difficulty
-    if len(recent_partials) == 0:
+    if not recent_partials:
         return current_difficulty
 
     # If we recently updated difficulty, don't update again

@@ -83,12 +83,12 @@ class PoolStore:
             row[7],
             row[8],
             row[9],
-            True if row[10] == 1 else False,
+            row[10] == 1,
         )
 
     async def add_farmer_record(self, farmer_record: FarmerRecord):
         cursor = await self.connection.execute(
-            f"INSERT OR REPLACE INTO farmer VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            "INSERT OR REPLACE INTO farmer VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (
                 farmer_record.launcher_id.hex(),
                 farmer_record.p2_singleton_puzzle_hash.hex(),
@@ -113,13 +113,12 @@ class PoolStore:
             (launcher_id.hex(),),
         )
         row = await cursor.fetchone()
-        if row is None:
-            return None
-        return self._row_to_farmer_record(row)
+        return None if row is None else self._row_to_farmer_record(row)
 
     async def update_difficulty(self, launcher_id: bytes32, difficulty: uint64):
         cursor = await self.connection.execute(
-            f"UPDATE farmer SET difficulty=? WHERE launcher_id=?", (difficulty, launcher_id.hex())
+            "UPDATE farmer SET difficulty=? WHERE launcher_id=?",
+            (difficulty, launcher_id.hex()),
         )
         await cursor.close()
         await self.connection.commit()
@@ -136,7 +135,7 @@ class PoolStore:
         else:
             entry = (bytes(singleton_tip), bytes(singleton_tip_state), 0, launcher_id.hex())
         cursor = await self.connection.execute(
-            f"UPDATE farmer SET singleton_tip=?, singleton_tip_state=?, is_pool_member=? WHERE launcher_id=?",
+            "UPDATE farmer SET singleton_tip=?, singleton_tip_state=?, is_pool_member=? WHERE launcher_id=?",
             entry,
         )
         await cursor.close()
@@ -146,15 +145,13 @@ class PoolStore:
         cursor = await self.connection.execute("SELECT p2_singleton_puzzle_hash from farmer")
         rows = await cursor.fetchall()
 
-        all_phs: Set[bytes32] = set()
-        for row in rows:
-            all_phs.add(bytes32(bytes.fromhex(row[0])))
+        all_phs: Set[bytes32] = {bytes32(bytes.fromhex(row[0])) for row in rows}
         return all_phs
 
     async def get_farmer_records_for_p2_singleton_phs(self, puzzle_hashes: Set[bytes32]) -> List[FarmerRecord]:
-        if len(puzzle_hashes) == 0:
+        if not puzzle_hashes:
             return []
-        puzzle_hashes_db = tuple([ph.hex() for ph in list(puzzle_hashes)])
+        puzzle_hashes_db = tuple(ph.hex() for ph in list(puzzle_hashes))
         cursor = await self.connection.execute(
             f'SELECT * from farmer WHERE p2_singleton_puzzle_hash in ({"?," * (len(puzzle_hashes_db) - 1)}?) ',
             puzzle_hashes_db,
@@ -163,7 +160,9 @@ class PoolStore:
         return [self._row_to_farmer_record(row) for row in rows]
 
     async def get_farmer_points_and_payout_instructions(self) -> List[Tuple[uint64, bytes]]:
-        cursor = await self.connection.execute(f"SELECT points, payout_instructions from farmer")
+        cursor = await self.connection.execute(
+            "SELECT points, payout_instructions from farmer"
+        )
         rows = await cursor.fetchall()
         accumulated: Dict[bytes32, uint64] = {}
         for row in rows:
@@ -174,13 +173,13 @@ class PoolStore:
             else:
                 accumulated[ph] = points
 
-        ret: List[Tuple[uint64, bytes32]] = []
-        for ph, total_points in accumulated.items():
-            ret.append((total_points, ph))
+        ret: List[Tuple[uint64, bytes32]] = [
+            (total_points, ph) for ph, total_points in accumulated.items()
+        ]
         return ret
 
     async def clear_farmer_points(self) -> None:
-        cursor = await self.connection.execute(f"UPDATE farmer set points=0")
+        cursor = await self.connection.execute("UPDATE farmer set points=0")
         await cursor.close()
         await self.connection.commit()
 
@@ -190,12 +189,15 @@ class PoolStore:
             (launcher_id.hex(), timestamp, difficulty),
         )
         await cursor.close()
-        cursor = await self.connection.execute(f"SELECT points from farmer where launcher_id=?", (launcher_id.hex(),))
+        cursor = await self.connection.execute(
+            "SELECT points from farmer where launcher_id=?", (launcher_id.hex(),)
+        )
         row = await cursor.fetchone()
         points = row[0]
         await cursor.close()
         cursor = await self.connection.execute(
-            f"UPDATE farmer set points=? where launcher_id=?", (points + difficulty, launcher_id.hex())
+            "UPDATE farmer set points=? where launcher_id=?",
+            (points + difficulty, launcher_id.hex()),
         )
         await cursor.close()
         await self.connection.commit()

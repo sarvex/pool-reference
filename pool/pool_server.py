@@ -274,7 +274,7 @@ async def start_pool_server():
     )
     runner = aiohttp.web.AppRunner(app, access_log=None)
     await runner.setup()
-    site = aiohttp.web.TCPSite(runner, "0.0.0.0", int(80))
+    site = aiohttp.web.TCPSite(runner, "0.0.0.0", 80)
     await site.start()
     await asyncio.sleep(10000000)
 

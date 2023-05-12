@@ -57,7 +57,7 @@ class Pool:
         self.log.basicConfig(level=logging.INFO)
 
         # We load our configurations from here
-        with open(os.getcwd() + "/config.yaml") as f:
+        with open(f"{os.getcwd()}/config.yaml") as f:
             pool_config: Dict = yaml.safe_load(f)
 
         # Set our pool info here
@@ -266,8 +266,10 @@ class Pool:
                     ph_to_coins[cr.coin.puzzle_hash].append(cr)
 
                 # For each p2sph, get the FarmerRecords
-                farmer_records = await self.store.get_farmer_records_for_p2_singleton_phs(
-                    set([ph for ph in ph_to_amounts.keys()])
+                farmer_records = (
+                    await self.store.get_farmer_records_for_p2_singleton_phs(
+                        set(list(ph_to_amounts.keys()))
+                    )
                 )
 
                 # For each singleton, create, submit, and save a claim transaction
@@ -279,7 +281,7 @@ class Pool:
                     else:
                         not_claimable_amounts += ph_to_amounts[rec.p2_singleton_puzzle_hash]
 
-                if len(coin_records) > 0:
+                if coin_records:
                     self.log.info(f"Claimable amount: {claimable_amounts / (10**12)}")
                     self.log.info(f"Not claimable amount: {not_claimable_amounts / (10**12)}")
                     self.log.info(f"Not buried amounts: {not_buried_amounts / (10**12)}")
@@ -350,12 +352,12 @@ class Pool:
                     self.default_target_puzzle_hash, include_spent_coins=False
                 )
 
-                if len(coin_records) == 0:
+                if not coin_records:
                     self.log.info("No funds to distribute.")
                     await asyncio.sleep(120)
                     continue
 
-                total_amount_claimed = sum([c.coin.amount for c in coin_records])
+                total_amount_claimed = sum(c.coin.amount for c in coin_records)
                 pool_coin_amount = int(total_amount_claimed * self.pool_fee)
                 amount_to_distribute = total_amount_claimed - pool_coin_amount
 
@@ -369,7 +371,7 @@ class Pool:
                     points_and_ph: List[
                         Tuple[uint64, bytes]
                     ] = await self.store.get_farmer_points_and_payout_instructions()
-                    total_points = sum([pt for (pt, ph) in points_and_ph])
+                    total_points = sum(pt for (pt, ph) in points_and_ph)
                     if total_points > 0:
                         mojo_per_point = floor(amount_to_distribute / total_points)
                         self.log.info(f"Paying out {mojo_per_point} mojo / point")
@@ -544,7 +546,10 @@ class Pool:
             ] = await self.get_and_validate_singleton_state(request.payload.launcher_id)
 
             if singleton_state_tuple is None:
-                return error_dict(PoolErrorCode.INVALID_SINGLETON, f"Invalid singleton, or not a pool member")
+                return error_dict(
+                    PoolErrorCode.INVALID_SINGLETON,
+                    "Invalid singleton, or not a pool member",
+                )
 
             last_spend, last_state = singleton_state_tuple
 
@@ -559,11 +564,11 @@ class Pool:
             if len(hexstr_to_bytes(request.payload.payout_instructions)) != 32:
                 return error_dict(
                     PoolErrorCode.INVALID_PAYOUT_INSTRUCTIONS,
-                    f"Payout instructions must be an xch address for this pool.",
+                    "Payout instructions must be an xch address for this pool.",
                 )
 
             if not AugSchemeMPL.verify(last_state.owner_pubkey, request.payload.get_hash(), request.signature):
-                return error_dict(PoolErrorCode.INVALID_SIGNATURE, f"Invalid signature")
+                return error_dict(PoolErrorCode.INVALID_SIGNATURE, "Invalid signature")
 
             launcher_coin: Optional[CoinRecord] = await self.node_rpc_client.get_coin_record_by_name(
                 request.payload.launcher_id
@@ -574,7 +579,10 @@ class Pool:
             delay_time, delay_puzzle_hash = get_delayed_puz_info_from_launcher_spend(launcher_solution)
 
             if delay_time < 3600:
-                return error_dict(PoolErrorCode.DELAY_TIME_TOO_SHORT, f"Delay time too short, must be at least 1 hour")
+                return error_dict(
+                    PoolErrorCode.DELAY_TIME_TOO_SHORT,
+                    "Delay time too short, must be at least 1 hour",
+                )
 
             p2_singleton_puzzle_hash = launcher_id_to_p2_puzzle_hash(
                 request.payload.launcher_id, delay_time, delay_puzzle_hash
@@ -611,10 +619,13 @@ class Pool:
         last_spend, last_state = singleton_state_tuple
 
         if singleton_state_tuple is None:
-            return error_dict(PoolErrorCode.INVALID_SINGLETON, f"Invalid singleton, or not a pool member")
+            return error_dict(
+                PoolErrorCode.INVALID_SINGLETON,
+                "Invalid singleton, or not a pool member",
+            )
 
         if not AugSchemeMPL.verify(last_state.owner_pubkey, request.payload.get_hash(), request.signature):
-            return error_dict(PoolErrorCode.INVALID_SIGNATURE, f"Invalid signature")
+            return error_dict(PoolErrorCode.INVALID_SIGNATURE, "Invalid signature")
 
         farmer_dict = farmer_record.to_json_dict()
         response_dict = {}
@@ -706,9 +717,7 @@ class Pool:
             self.log.info(f"Updating singleton state for {launcher_id}")
             await self.store.update_singleton(launcher_id, singleton_tip, singleton_tip_state, is_pool_member)
 
-        if is_pool_member:
-            return singleton_tip, singleton_tip_state
-        return None
+        return (singleton_tip, singleton_tip_state) if is_pool_member else None
 
     async def process_partial(
         self,

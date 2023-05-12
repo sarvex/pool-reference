@@ -20,7 +20,7 @@ from chia.util.ints import uint32
 from store import FarmerRecord
 
 log = logging
-log.basicConfig(level=logging.INFO)
+log.basicConfig(level=log.INFO)
 
 
 async def get_coin_spend(node_rpc_client: FullNodeRpcClient, coin_record: CoinRecord) -> Optional[CoinSolution]:
